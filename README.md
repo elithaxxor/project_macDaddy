@@ -3,6 +3,14 @@
 
 A beautiful, native macOS application that makes discovering, organizing, and installing security tools, programming environments, and utilities a seamless experience.
 
+```
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/1d2b3055-e41f-4db3-b021-d770850750a7" alt="00logo" width="200"/>
+</div>
+
+```markdown 
+
 ![Tool Installer Screenshot](screenshots/main_view.png)
 
 ## 🌟 Features
