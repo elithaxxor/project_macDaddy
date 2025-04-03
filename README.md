@@ -1,198 +1,113 @@
-![](assets/logo_white.png)
+```markdown
+# project macDaddy
 
-# Project MacSec
+A beautiful, native macOS application that makes discovering, organizing, and installing security tools, programming environments, and utilities a seamless experience.
 
-## Transform your Mac into a PenTesting/Forensic device
+![Tool Installer Screenshot](screenshots/main_view.png)
 
-This is a personal project I want to share with the community. It's a collection of pentesting/forensic tools available for MacOS through Homebrew. 
-It's neither complete nor even near probably but continuesly extended!
-Feel free to extend it on your own and have fun exploring!
+## 🌟 Features
 
-Disclaimer/Notice: use these tools ONLY if the system you're testing is owned by you or you have a WRITTEN CONSENT FORM of the owner! Otherwise, the usage is probably illegal!
+- **Category-Based Organization**: Browse tools organized into intuitive categories
+- **Search Functionality**: Quickly find tools by name or description
+- **Asynchronous Installation**: Install multiple tools without freezing the UI
+- **Real-Time Feedback**: Track installation progress with visual indicators
+- **Detailed Tool Information**: View comprehensive details about each tool
+- **Intel/Apple Silicon Compatibility**: Automatic detection of your Mac's architecture
+- **Clean, Native Interface**: Feels right at home on macOS
 
-### Tools
+## 🛠 Installation
 
-#### General
+### Requirements
+- macOS 12.0 or later
+- Xcode 13.0 or later (for development)
+- Homebrew (will be installed automatically if not present)
 
-- util-linux
+### Installing from Release
+1. Download the latest release from the [Releases page](https://github.com/yourusername/tool-installer/releases)
+2. Drag `Tool Installer.app` to your Applications folder
+3. When opening for the first time, right-click and select "Open" to bypass Gatekeeper
 
-#### Information Gathering / OSINT
+### Building from Source
+1. Clone this repository
+   ```bash
+   git clone https://github.com/yourusername/tool-installer.git
+   cd tool-installer
+   ```
+2. Open the project in Xcode
+   ```bash
+   open ToolInstaller.xcodeproj
+   ```
+3. Build the project (⌘+B) and run (⌘+R)
 
-- arping
-- dnsmap
-- dnstracer
-- fping
-- fragroute
-- hping
-- ike-scan
-- maltego
-- masscan
-- nmap
-- p0f
-- recon-ng
-- ssldump
-- sslh (ssl/ssh multiplexer)
-- sslscan
-- sslyze
-- swaks
-- theharvester
-- zenmap
+## 💻 Usage
 
-#### Exploit Analysis
+### Installing Tools
+1. Browse categories in the sidebar or use the search bar to find tools
+2. Select individual tools using the checkboxes, or prepare to install all tools in a category
+3. Click "Install Selected" or "Install All" to begin the installation process
+4. Watch the progress indicators as tools are installed
+5. When complete, you're ready to use your new tools!
 
-- lynis
-- metasploit
-- nikto
-- nmap
-- siege
-- sipp
-- sipsak
-- slowhttptest
+### Getting Tool Details
+- Click on any tool name to view detailed information about it
+- The detail view includes installation type, category, and comprehensive description
 
-#### Web Tools
+### Managing Installations
+- Successfully installed tools are marked with a green checkmark
+- Failed installations show a red exclamation mark (hover for error details)
+- In-progress installations display a progress indicator
 
-- burp-suite
-- cadaver
-- httrack
-- hydra
-- maltego
-- mitmproxy
-- ncrack
-- nikto
-- nmap
-- owasp-zap
-- proxychains-ng
-- proxytunnel
-- siege
-- slowhttptest
-- sqlmap
-- ssldump
-- sslh (ssl/ssh multiplexer)
-- sslscan
-- sslsplit
-- sslyze
-- stunnel
-- wireshark
+## 🏗 Architecture
 
-#### Password Cracking
+This application is built with Swift and SwiftUI, using modern concurrency patterns:
 
-- crunch
-- fcrackzip
-- freerdp
-- hashcat
-- hydra
-- john
-- ncrack
-- ophcrack
-- pdfcrack
-- truecrack
+- **Model**: Tool struct defines the core data structure
+- **View**: SwiftUI views for presenting the interface
+- **ViewModel**: InstallationManager class manages the asynchronous installation process
+- **Utilities**: Shell script integration for executing Homebrew commands
 
-#### Wireless Hacking
+Key technical features:
+- Swift concurrency with async/await pattern
+- ObservableObject for reactive UI updates
+- Process handling for shell script execution
+- Error handling with detailed error messages
 
-- aircrack-ng
-- reaver
+## 🤝 Contributing
 
-#### Reverse Engineering
+Contributions are welcome! Here's how you can help:
 
-- apktool
-- cutter
-- dex2jar
-- jad
-- jd-gui
-- llvm
-- metasploit
-- radare2
+1. **Adding New Tools**: Edit the `tools` array in `ContentView.swift`
+2. **Improving UI**: Enhance the user interface and experience
+3. **Bug Fixes**: Address issues in the installation process
+4. **Documentation**: Improve this README or add code comments
 
-#### Exploitation
+Please follow these steps for contributing:
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-- armitage
-- exploitdb
-- metasploit
-- sqlmap
+## 📋 Roadmap
 
-#### Sniffing & Spoofing
+Future improvements planned:
+- Tool update checking and management
+- User favorites and custom tool collections
+- Installation history and logs
+- Dependency visualization
+- Export/import tool selections for team sharing
 
-- bettercap
-- darkstat
-- ettercap
-- mitmproxy
-- sslsplit
-- tcpflow
-- tcpreplay
-- wireshark
+## 📄 License
 
-#### Post-Exploitation
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- dns2tcp
-- proxychains-ng
-- proxytunnel
-- ptunnel
-- pwnat
-- sslh (ssl/ssh multiplexer)
-- stunnel
-- udptunnel 
+## 🙏 Acknowledgements
 
-#### Forensic Tools
+- [Homebrew](https://brew.sh/) - The missing package manager for macOS
+- All the amazing tool creators who make these security and development tools available
+- The SwiftUI community for inspiration and examples
 
-- afflib
-- apktool
-- autopsy
-- binwalk
-- bulk_extractor
-- cabextract
-- chkrootkit
-- cutter
-- dc3dd
-- dcfldd
-- ddrescue
-- libewf
-- exiv2
-- fcrackzip
-- foremost
-- gdb
-- jad
-- lynis
-- mac-robber
-- mdbtools
-- md5deep (hashdeep)
-- nasm
-- p7zip
-- pev
-- libpst
-- radare2
-- rkhunter
-- sleuthkit
-- smali
-- ssdeep
-- tcpdump
-- tcpflow
-- tcpreplay
-- truecrack
-- volatility
-- wireshark
-- yara
+---
 
-#### Misc
-
-- OpenVPN
-- Tor Browser
-
-### Installation
-
-1. Install Xcode
-
-```bash
-xcode-select --install
-```
-
-2. Install Homebrew
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-1. Run Installation-Script
-
-```bash
-./install.sh
+We all face the challenge of setting up and maintaining our development environments. This tool aims to make that process a little more joyful and a lot less time-consuming. Happy installing!
 ```
