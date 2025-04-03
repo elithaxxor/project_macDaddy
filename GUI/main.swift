@@ -9,7 +9,357 @@ struct Tool: Identifiable {
     let category: String
 }
 
-// List of all 147 tools
+// Define installation status for progress tracking
+enum InstallationStatus {
+    case notStarted
+    case inProgress
+    case completed
+    case failed(String)
+}
+
+// Create an observable object for managing installations
+class InstallationManager: ObservableObject {
+    @Published var installationStatus = [UUID: InstallationStatus]()
+    @Published var overallProgress: Double = 0.0
+    @Published var isInstalling = false
+    @Published var currentMessage = ""
+    
+    func installTools(_ toolsToInstall: [Tool]) async {
+        guard !toolsToInstall.isEmpty else { return }
+        
+        DispatchQueue.main.async {
+            self.isInstalling = true
+            self.overallProgress = 0.0
+            
+            // Initialize all tools as not started
+            for tool in toolsToInstall {
+                self.installationStatus[tool.id] = .notStarted
+            }
+        }
+        
+        let totalTools = Double(toolsToInstall.count)
+        var completedTools = 0.0
+        
+        for tool in toolsToInstall {
+            do {
+                // Update status to in progress
+                DispatchQueue.main.async {
+                    self.installationStatus[tool.id] = .inProgress
+                    self.currentMessage = "Installing \(tool.name)..."
+                }
+                
+                // Perform the installation
+                try await installTool(tool)
+                
+                // Update status to completed
+                DispatchQueue.main.async {
+                    self.installationStatus[tool.id] = .completed
+                    completedTools += 1
+                    self.overallProgress = completedTools / totalTools
+                }
+            } catch {
+                // Update status to failed with error message
+                DispatchQueue.main.async {
+                    self.installationStatus[tool.id] = .failed(error.localizedDescription)
+                    completedTools += 1
+                    self.overallProgress = completedTools / totalTools
+                }
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.isInstalling = false
+            self.currentMessage = "Installation complete"
+        }
+    }
+    
+    private func installTool(_ tool: Tool) async throws {
+        // Get the script path
+        guard let scriptPath = Bundle.main.path(forResource: "install_tools", ofType: "sh") else {
+            throw NSError(domain: "ToolInstaller", code: 1, userInfo: [NSLocalizedDescriptionKey: "Installation script not found"])
+        }
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = ["-c", "\(scriptPath) --install \(tool.name)"]
+            
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
+            
+            do {
+                try process.run()
+                process.terminationHandler = { process in
+                    if process.terminationStatus == 0 {
+                        continuation.resume()
+                    } else {
+                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                        let error = NSError(domain: "ToolInstaller", code: Int(process.terminationStatus), 
+                                           userInfo: [NSLocalizedDescriptionKey: errorMessage])
+                        continuation.resume(throwing: error)
+                    }
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+}
+
+// Main view with sidebar navigation
+struct ContentView: View {
+    @State private var selectedTools = Set<UUID>()
+    @State private var selectedCategory = "CLI Security"
+    @StateObject private var installationManager = InstallationManager()
+    @State private var searchText = ""
+    
+    var body: some View {
+        NavigationView {
+            // Sidebar with categories
+            List {
+                Section(header: Text("Categories")) {
+                    ForEach(categories, id: \.self) { category in
+                        NavigationLink(destination: ToolListView(
+                            tools: filteredTools(category: category), 
+                            selectedTools: $selectedTools,
+                            installationManager: installationManager,
+                            searchText: $searchText)
+                        ) {
+                            Text(category)
+                        }
+                    }
+                }
+            }
+            .listStyle(SidebarListStyle())
+
+            // Default tool list view
+            ToolListView(
+                tools: filteredTools(category: selectedCategory), 
+                selectedTools: $selectedTools,
+                installationManager: installationManager,
+                searchText: $searchText
+            )
+        }
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                TextField("Search tools...", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .frame(width: 200)
+            }
+            
+            ToolbarItem(placement: .navigation) {
+                Button(action: {
+                    let selected = tools.filter { selectedTools.contains($0.id) }
+                    Task {
+                        await installationManager.installTools(selected)
+                    }
+                }) {
+                    Text("Install Selected")
+                }
+                .disabled(installationManager.isInstalling || selectedTools.isEmpty)
+            }
+            
+            ToolbarItem(placement: .navigation) {
+                Button(action: {
+                    Task {
+                        await installationManager.installTools(tools)
+                    }
+                }) {
+                    Text("Install All")
+                }
+                .disabled(installationManager.isInstalling)
+            }
+        }
+        .overlay(
+            Group {
+                if installationManager.isInstalling {
+                    VStack {
+                        Text("Installation Progress")
+                            .font(.headline)
+                            .padding(.bottom, 5)
+                        
+                        ProgressView(value: installationManager.overallProgress, total: 1.0)
+                            .progressViewStyle(LinearProgressViewStyle())
+                            .padding(.horizontal)
+                        
+                        Text("\(Int(installationManager.overallProgress * 100))%")
+                            .font(.caption)
+                            .padding(.top, 5)
+                        
+                        Text(installationManager.currentMessage)
+                            .font(.caption)
+                            .padding(.bottom)
+                    }
+                    .padding()
+                    .frame(width: 300)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(10)
+                    .shadow(radius: 10)
+                }
+            }
+        )
+        .frame(minWidth: 600, minHeight: 400)
+    }
+
+    // Extract unique categories from tools
+    private var categories: [String] {
+        Array(Set(tools.map { $0.category })).sorted()
+    }
+
+    // Filter tools by category and search text
+    private func filteredTools(category: String) -> [Tool] {
+        let categoryFiltered = tools.filter { $0.category == category }
+        
+        if searchText.isEmpty {
+            return categoryFiltered
+        } else {
+            return categoryFiltered.filter { 
+                $0.name.lowercased().contains(searchText.lowercased()) || 
+                $0.description.lowercased().contains(searchText.lowercased())
+            }
+        }
+    }
+}
+
+// View for displaying tools in a category
+struct ToolListView: View {
+    let tools: [Tool]
+    @Binding var selectedTools: Set<UUID>
+    let installationManager: InstallationManager
+    @Binding var searchText: String
+    @State private var selectedTool: Tool? = nil
+    
+    var body: some View {
+        VStack {
+            List {
+                ForEach(tools) { tool in
+                    HStack {
+                        Image(systemName: tool.isCask ? "display" : "terminal")
+                            .foregroundColor(.blue)
+                            .frame(width: 25)
+                        
+                        VStack(alignment: .leading) {
+                            Text(tool.name).font(.headline)
+                            Text(tool.description).font(.subheadline).foregroundColor(.gray)
+                        }
+                        .onTapGesture {
+                            selectedTool = tool
+                        }
+                        
+                        Spacer()
+                        
+                        // Installation status indicator
+                        if let status = installationManager.installationStatus[tool.id] {
+                            switch status {
+                            case .notStarted:
+                                EmptyView()
+                            case .inProgress:
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                            case .completed:
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            case .failed(let message):
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundColor(.red)
+                                    .help(message)
+                            }
+                        }
+                        
+                        if tool.category != "Virtualization" || (tool.name != "virtualbox" || isIntel()) {
+                            Toggle("", isOn: Binding(
+                                get: { selectedTools.contains(tool.id) },
+                                set: { if $0 { selectedTools.insert(tool.id) } else { selectedTools.remove(tool.id) } }
+                            )).labelsHidden()
+                            .disabled(installationManager.isInstalling)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedTool = tool
+                    }
+                }
+            }
+            
+            if tools.isEmpty && !searchText.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No tools match your search criteria")
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+            }
+        }
+        .navigationTitle("Install Tools")
+        .sheet(item: $selectedTool) { tool in
+            ToolDetailView(tool: tool)
+        }
+    }
+
+    // Check if the system is Intel-based
+    private func isIntel() -> Bool {
+        let process = Process()
+        process.launchPath = "/usr/bin/uname"
+        process.arguments = ["-m"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.launch()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return output == "x86_64"
+    }
+}
+
+// Detail view for a selected tool
+struct ToolDetailView: View {
+    let tool: Tool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Image(systemName: tool.isCask ? "display" : "terminal")
+                    .font(.largeTitle)
+                    .foregroundColor(.blue)
+                
+                Text(tool.name)
+                    .font(.largeTitle)
+                    .bold()
+            }
+            
+            Divider()
+            
+            Text("Description")
+                .font(.headline)
+            
+            Text(tool.description)
+                .font(.body)
+            
+            Divider()
+            
+            Group {
+                Text("Installation Type")
+                    .font(.headline)
+                
+                Text(tool.isCask ? "GUI Application (Homebrew Cask)" : "Command Line Tool (Homebrew Formula)")
+                    .font(.body)
+                
+                Text("Category")
+                    .font(.headline)
+                
+                Text(tool.category)
+                    .font(.body)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .frame(width: 400, height: 350)
+    }
+}
+
 let tools = [
     // CLI Security Tools
     Tool(name: "afflib", description: "Tools for handling Advanced Forensic Format (AFF) images", isCask: false, category: "CLI Security"),
@@ -197,137 +547,14 @@ let tools = [
     Tool(name: "wget", description: "Non-interactive network downloader", isCask: false, category: "Miscellaneous"),
     Tool(name: "tmux", description: "Terminal multiplexer", isCask: false, category: "Miscellaneous")
 ]
-
-// Main view with sidebar navigation
-struct ContentView: View {
-    @State private var selectedTools = Set<UUID>()
-    @State private var selectedCategory = "CLI Security"
-    @State private var showingAlert = false
-    @State private var alertMessage = ""
-
-    var body: some View {
-        NavigationView {
-            // Sidebar with categories
-            List {
-                Section(header: Text("Categories")) {
-                    ForEach(categories, id: \.self) { category in
-                        NavigationLink(destination: ToolListView(tools: filteredTools(category: category), selectedTools: $selectedTools)) {
-                            Text(category)
-                        }
-                    }
-                }
-            }
-            .listStyle(SidebarListStyle())
-
-            // Default tool list view
-            ToolListView(tools: filteredTools(category: selectedCategory), selectedTools: $selectedTools)
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button(action: installSelected) {
-                    Text("Install Selected")
-                }
-            }
-            ToolbarItem(placement: .navigation) {
-                Button(action: installAll) {
-                    Text("Install All")
-                }
-            }
-        }
-        .alert(isPresented: $showingAlert) {
-            Alert(title: Text("Installation"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
-        }
-        .frame(minWidth: 600, minHeight: 400)
-    }
-
-    // Extract unique categories from tools
-    private var categories: [String] {
-        Array(Set(tools.map { $0.category }))
-    }
-
-    // Filter tools by category
-    private func filteredTools(category: String) -> [Tool] {
-        tools.filter { $0.category == category }
-    }
-
-    // Install only selected tools
-    private func installSelected() {
-        let selected = tools.filter { selectedTools.contains($0.id) }
-        installTools(selected)
-    }
-
-    // Install all tools
-    private func installAll() {
-        installTools(tools)
-    }
-
-    // Handle tool installation by calling the Bash script
-    private func installTools(_ toolsToInstall: [Tool]) {
-        let toolNames = toolsToInstall.map { $0.name }.joined(separator: " ")
-        let scriptPath = Bundle.main.path(forResource: "install_tools", ofType: "sh") ?? "/path/to/install_tools.sh"
-        runCommand("\(scriptPath) --install \(toolNames)")
-    }
-
-    // Execute a shell command
-    private func runCommand(_ command: String) {
-        let process = Process()
-        process.launchPath = "/bin/bash"
-        process.arguments = ["-c", command]
-        process.launch()
-        process.waitUntilExit()
-        if process.terminationStatus == 0 {
-            alertMessage = "Installation successful."
-        } else {
-            alertMessage = "Installation failed."
-        }
-        showingAlert = true
-    }
-}
-
-// View for displaying tools in a category
-struct ToolListView: View {
-    let tools: [Tool]
-    @Binding var selectedTools: Set<UUID>
-
-    var body: some View {
-        List {
-            ForEach(tools) { tool in
-                HStack {
-                    Image(systemName: tool.isCask ? "display" : "terminal")
-                    VStack(alignment: .leading) {
-                        Text(tool.name).font(.headline)
-                        Text(tool.description).font(.subheadline).foregroundColor(.gray)
-                    }
-                    Spacer()
-                    if tool.category != "Virtualization" || (tool.name != "virtualbox" || isIntel()) {
-                        Toggle("", isOn: Binding(
-                            get: { selectedTools.contains(tool.id) },
-                            set: { if $0 { selectedTools.insert(tool.id) } else { selectedTools.remove(tool.id) } }
-                        )).labelsHidden()
-                    }
-                }
-            }
-        }
-        .navigationTitle("Install Tools")
-    }
-
-    // Check if the system is Intel-based
-    private func isIntel() -> Bool {
-        let process = Process()
-        process.launchPath = "/usr/bin/uname"
-        process.arguments = ["-m"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.launch()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return output == "x86_64"
-    }
-}
-
 // Preview for development
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
     }
 }
+
+
+
+
+
