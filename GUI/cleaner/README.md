@@ -3,6 +3,14 @@
 
 This SwiftUI application provides a graphical user interface (GUI) for the `cleanup.sh` script, which is designed to perform various system cleanup tasks on macOS. The GUI allows users to interact with the script through a simplified menu and view the script's output in real-time.
 
+```
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/a24e3557-31dc-42d5-9f1d-1b3ae8d24306" alt="logo3" width="300"/>
+</p>
+
+
+```markdown
+
 ## Features
 
 - **Sidebar Menu**: A list of cleanup options matching the bash script.
